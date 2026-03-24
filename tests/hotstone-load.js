@@ -15,19 +15,17 @@ export const options = {
   },
 };
 
-// Read secrets from GitHub Action env
-const BASE_URL = __ENV.BASE_URL;
-const EMAIL = __ENV.EMAIL;
-const PASSWORD = __ENV.PASSWORD;
-const RESTAURANT_ID = __ENV.RESTAURANT_ID; // optional, can add later if needed
+const BASE_URL = __ENV.BASE_URL; // e.g., https://apiloyalty.hotstonelondon.com
+const EMAIL = __ENV.EMAIL;       // admin@gmail.com
+const PASSWORD = __ENV.PASSWORD; // Password@1
+const RESTAURANT_ID = __ENV.RESTAURANT_ID; // e.g., 123
 
 export function setup() {
   if (!BASE_URL || !EMAIL || !PASSWORD) {
-    throw new Error(
-      `Missing required env vars. BASE_URL=${BASE_URL}, EMAIL=${EMAIL ? '***' : 'undefined'}, PASSWORD=${PASSWORD ? '***' : 'undefined'}`
-    );
+    throw new Error(`Missing required env vars. BASE_URL=${BASE_URL}, EMAIL=${EMAIL ? '***' : 'undefined'}, PASSWORD=${PASSWORD ? '***' : 'undefined'}`);
   }
 
+  // Admin login
   const loginRes = http.post(`${BASE_URL}/auth/staff/login`, JSON.stringify({
     email: EMAIL,
     password: PASSWORD,
@@ -44,12 +42,23 @@ export function setup() {
 }
 
 export default function (data) {
-  // Admin offers endpoint
-  const offersRes = http.get(`${BASE_URL}/special-offer`, {
+  // 1️⃣ Admin: fetch special offers
+  const adminOffersRes = http.get(`${BASE_URL}/special-offer`, {
     headers: { Authorization: `Bearer ${data.token}` },
   });
-  check(offersRes, { 'offers success': (r) => r.status === 200 });
+  check(adminOffersRes, { 'admin offers success': (r) => r.status === 200 });
 
-  // Sleep to respect API rate limit
+  // 2️⃣ Customer: fetch special offers
+  if (RESTAURANT_ID) {
+    const customerOffersRes = http.get(`${BASE_URL}/special-offer/special-offer/customer`, {
+      headers: {
+        Authorization: `Bearer ${data.token}`,
+        'x-restaurant-id': RESTAURANT_ID,
+      },
+    });
+    check(customerOffersRes, { 'customer offers success': (r) => r.status === 200 });
+  }
+
+  // Respect API rate limit (~25/minute)
   sleep(3);
 }
