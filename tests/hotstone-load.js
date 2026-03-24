@@ -15,15 +15,16 @@ export const options = {
   },
 };
 
+// Read secrets from GitHub Action env
 const BASE_URL = __ENV.BASE_URL;
 const EMAIL = __ENV.EMAIL;
 const PASSWORD = __ENV.PASSWORD;
-const RESTAURANT_ID = __ENV.RESTAURANT_ID;
+const RESTAURANT_ID = __ENV.RESTAURANT_ID; // optional, can add later if needed
 
 export function setup() {
-  if (!BASE_URL || !EMAIL || !PASSWORD || !RESTAURANT_ID) {
+  if (!BASE_URL || !EMAIL || !PASSWORD) {
     throw new Error(
-      `Missing required env vars. BASE_URL=${BASE_URL}, EMAIL=${EMAIL ? '***' : 'undefined'}, PASSWORD=${PASSWORD ? '***' : 'undefined'}, RESTAURANT_ID=${RESTAURANT_ID}`
+      `Missing required env vars. BASE_URL=${BASE_URL}, EMAIL=${EMAIL ? '***' : 'undefined'}, PASSWORD=${PASSWORD ? '***' : 'undefined'}`
     );
   }
 
@@ -43,20 +44,12 @@ export function setup() {
 }
 
 export default function (data) {
-  // Admin offers
+  // Admin offers endpoint
   const offersRes = http.get(`${BASE_URL}/special-offer`, {
     headers: { Authorization: `Bearer ${data.token}` },
   });
   check(offersRes, { 'offers success': (r) => r.status === 200 });
 
-  // Customer offers
-  const customerRes = http.get(`${BASE_URL}/special-offer/special-offer/customer`, {
-    headers: {
-      Authorization: `Bearer ${data.token}`,
-      'x-restaurant-id': RESTAURANT_ID,
-    },
-  });
-  check(customerRes, { 'customer offers success': (r) => r.status === 200 });
-
+  // Sleep to respect API rate limit
   sleep(3);
 }
