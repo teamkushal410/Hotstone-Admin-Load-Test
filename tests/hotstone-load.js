@@ -3,10 +3,11 @@ import { check, sleep } from 'k6';
 
 export const options = {
   stages: [
-    { duration: '30s', target: 5 },   // ramp-up
-    { duration: '1m', target: 10 },   // moderate load
-    { duration: '1m', target: 15 },   // high load, careful with rate limit
-    { duration: '30s', target: 0 },   // ramp-down
+    { duration: '30s', target: 5 },    // ramp-up
+    { duration: '1m', target: 10 },    // moderate load
+    { duration: '1m', target: 20 },    // high load
+    { duration: '1m', target: 30 },    // stress
+    { duration: '30s', target: 0 },    // ramp-down
   ],
   thresholds: {
     http_req_failed: ['rate<0.05'],
@@ -20,7 +21,7 @@ const PASSWORD = __ENV.PASSWORD;
 const RESTAURANT_ID = __ENV.RESTAURANT_ID;
 
 export function setup() {
-  // login once to get token
+  // Login once, get token
   let loginRes = http.post(`${BASE_URL}/auth/staff/login`, JSON.stringify({
     email: EMAIL,
     password: PASSWORD
@@ -30,11 +31,15 @@ export function setup() {
 
   const token = loginRes.json('token');
 
+  if (!token) {
+    throw new Error('Login failed – no token received');
+  }
+
   return { token };
 }
 
 export default function (data) {
-  // call /special-offer (admin offers)
+  // Call admin offers
   let offersRes = http.get(`${BASE_URL}/special-offer`, {
     headers: { Authorization: `Bearer ${data.token}` },
   });
@@ -43,7 +48,7 @@ export default function (data) {
     'offers success': (r) => r.status === 200,
   });
 
-  // call customer-specific API
+  // Call customer offers
   let customerRes = http.get(`${BASE_URL}/special-offer/special-offer/customer`, {
     headers: { 
       Authorization: `Bearer ${data.token}`,
@@ -55,6 +60,6 @@ export default function (data) {
     'customer offers success': (r) => r.status === 200,
   });
 
-  // sleep to respect rate limit (~2.5s per request)
+  // Respect rate limit (~1 request every 2.5-3s per endpoint)
   sleep(3);
 }
