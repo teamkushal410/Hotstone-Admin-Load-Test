@@ -3,15 +3,15 @@ import { check, sleep } from 'k6';
 
 export const options = {
   stages: [
-    { duration: '30s', target: 5 },    // ramp-up
-    { duration: '1m', target: 10 },    // moderate load
-    { duration: '1m', target: 20 },    // higher load
-    { duration: '1m', target: 30 },    // stress
-    { duration: '30s', target: 0 },    // ramp-down
+    { duration: '30s', target: 5 },
+    { duration: '1m', target: 10 },
+    { duration: '1m', target: 20 },
+    { duration: '1m', target: 30 },
+    { duration: '30s', target: 0 },
   ],
   thresholds: {
-    http_req_failed: ['rate<0.05'],       // <5% failed requests
-    http_req_duration: ['p(95)<1000'],    // p95 < 1000ms
+    http_req_failed: ['rate<0.05'],
+    http_req_duration: ['p(95)<1000'],
   },
 };
 
@@ -21,7 +21,7 @@ const PASSWORD = __ENV.PASSWORD;
 const RESTAURANT_ID = __ENV.RESTAURANT_ID;
 
 export function setup() {
-  // Login once and get token
+  // Login once
   const loginRes = http.post(`${BASE_URL}/auth/staff/login`, JSON.stringify({
     email: EMAIL,
     password: PASSWORD,
@@ -38,21 +38,21 @@ export function setup() {
 }
 
 export default function (data) {
-  // 1️⃣ Call admin offers API
+  // Admin offers API
   const offersRes = http.get(`${BASE_URL}/special-offer`, {
     headers: { Authorization: `Bearer ${data.token}` },
   });
   check(offersRes, { 'offers success': (r) => r.status === 200 });
 
-  // 2️⃣ Call customer offers API
+  // Customer offers API
   const customerRes = http.get(`${BASE_URL}/special-offer/special-offer/customer`, {
-    headers: { 
+    headers: {
       Authorization: `Bearer ${data.token}`,
       'x-restaurant-id': RESTAURANT_ID,
     },
   });
   check(customerRes, { 'customer offers success': (r) => r.status === 200 });
 
-  // Respect API rate limit (~25 requests per minute → 2.5–3s sleep per iteration)
+  // Sleep to respect rate limit (~25 requests/min)
   sleep(3);
 }
