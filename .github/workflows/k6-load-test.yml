@@ -1,18 +1,22 @@
-name: k6 Load Test - Hotstone Admin
+name: k6 Load & Stress Test - Hotstone Admin
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ main ]
 
 jobs:
   load-test:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-      - uses: grafana/setup-k6-action@v1
+      - name: Setup k6
+        uses: grafana/setup-k6-action@v1
 
-      - name: Run k6 Test
+      - name: Run k6 Test (Export JSON)
         run: |
           k6 run tests/hotstone-load.js \
           --env BASE_URL=${{ secrets.BASE_URL }} \
@@ -21,7 +25,7 @@ jobs:
           --env RESTAURANT_ID=${{ secrets.RESTAURANT_ID }} \
           --out json=report.json
 
-      - name: Install HTML Reporter
+      - name: Install k6 HTML Reporter
         run: npm install -g k6-reporter
 
       - name: Generate HTML Report
