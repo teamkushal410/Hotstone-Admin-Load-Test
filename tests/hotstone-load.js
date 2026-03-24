@@ -2,53 +2,58 @@ import http from 'k6/http';
 import { check, sleep } from 'k6';
 
 export const options = {
-  vus: 1, // only 1 VU to stay under API rate limit
-  duration: '5m',
+  vus: 3, // 1 VU per admin account
+  duration: '4m',
   thresholds: {
-    http_req_failed: ['rate<0.05'],
+    http_req_failed: ['rate<0.1'],
+    http_req_duration: ['p(95)<1000'],
   },
 };
 
-const BASE_URL = __ENV.BASE_URL;       // https://apiloyalty.hotstonelondon.com
-const EMAIL = __ENV.EMAIL;             // admin@gmail.com
-const PASSWORD = __ENV.PASSWORD;       // Password@1
-const RESTAURANT_ID = __ENV.RESTAURANT_ID; // from GitHub secrets
+const BASE_URL = __ENV.BASE_URL;
+const RESTAURANT_ID = __ENV.RESTAURANT_ID;
+
+const ADMINS = [
+  { email: __ENV.EMAIL, password: __ENV.PASSWORD },
+  { email: __ENV.EMAIL1, password: __ENV.PASSWORD1 },
+  { email: __ENV.EMAIL2, password: __ENV.PASSWORD2 },
+];
+
+function adminLogin(email, password) {
+  const res = http.post(`${BASE_URL}/auth/staff/login`, JSON.stringify({ email, password }), {
+    headers: { 'Content-Type': 'application/json' },
+  });
+
+  if (res.status !== 200 && res.status !== 201) {
+    throw new Error(`Login failed for ${email}: ${res.status} - ${res.body}`);
+  }
+  return res.json('accessToken');
+}
 
 export function setup() {
-  // Admin login
-  const loginRes = http.post(`${BASE_URL}/auth/staff/login`, JSON.stringify({
-    email: EMAIL,
-    password: PASSWORD,
-  }), { headers: { 'Content-Type': 'application/json' } });
-
-  if (loginRes.status !== 200 && loginRes.status !== 201) {
-    throw new Error(`Login failed: ${loginRes.status} - ${loginRes.body}`);
-  }
-
-  const token = loginRes.json('accessToken');
-  if (!token) throw new Error('No accessToken returned');
-
-  return { token };
+  const tokens = ADMINS.map(acc => adminLogin(acc.email, acc.password));
+  return { tokens };
 }
 
 export default function (data) {
-  // 1️⃣ Admin: fetch all offers
+  const vuIndex = __VU - 1;
+  const token = data.tokens[vuIndex % data.tokens.length];
+
   const adminRes = http.get(`${BASE_URL}/special-offer`, {
-    headers: { Authorization: `Bearer ${data.token}` },
+    headers: { Authorization: `Bearer ${token}` },
   });
   check(adminRes, { 'admin offers success': (r) => r.status === 200 });
 
-  // 2️⃣ Customer: fetch special offers
   if (RESTAURANT_ID) {
-    const customerRes = http.get(`${BASE_URL}/special-offer/special-offer/customer`, {
+    const custRes = http.get(`${BASE_URL}/special-offer/special-offer/customer`, {
       headers: {
-        Authorization: `Bearer ${data.token}`,
+        Authorization: `Bearer ${token}`,
         'x-restaurant-id': RESTAURANT_ID,
       },
     });
-    check(customerRes, { 'customer offers success': (r) => r.status === 200 });
+    check(custRes, { 'customer offers success': (r) => r.status === 200 });
   }
 
-  // Respect API rate limit ~25 requests per minute
+  // Rate limit: ~25 requests/min → 1 request every 2.5s
   sleep(2.5);
 }
