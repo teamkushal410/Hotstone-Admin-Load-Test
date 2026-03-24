@@ -1,45 +1,58 @@
-name: k6 Load & Stress Test - Hotstone Admin
+import http from 'k6/http';
+import { check, sleep } from 'k6';
 
-on:
-  workflow_dispatch:
-  push:
-    branches: [ main ]
+export const options = {
+  stages: [
+    { duration: '30s', target: 5 },    // ramp-up
+    { duration: '1m', target: 10 },    // moderate load
+    { duration: '1m', target: 20 },    // higher load
+    { duration: '1m', target: 30 },    // stress
+    { duration: '30s', target: 0 },    // ramp-down
+  ],
+  thresholds: {
+    http_req_failed: ['rate<0.05'],       // <5% failed requests
+    http_req_duration: ['p(95)<1000'],    // p95 < 1000ms
+  },
+};
 
-jobs:
-  load-test:
-    runs-on: ubuntu-latest
+const BASE_URL = __ENV.BASE_URL;
+const EMAIL = __ENV.EMAIL;
+const PASSWORD = __ENV.PASSWORD;
+const RESTAURANT_ID = __ENV.RESTAURANT_ID;
 
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+export function setup() {
+  // Login once and get token
+  const loginRes = http.post(`${BASE_URL}/auth/staff/login`, JSON.stringify({
+    email: EMAIL,
+    password: PASSWORD,
+  }), {
+    headers: { 'Content-Type': 'application/json' },
+  });
 
-      - name: Setup k6
-        uses: grafana/setup-k6-action@v3
-        with:
-          k6-version: 'latest'
+  const token = loginRes.json('token');
+  if (!token) {
+    throw new Error('Login failed: No token returned');
+  }
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
+  return { token };
+}
 
-      - name: Run k6 Test (Export JSON)
-        run: |
-          k6 run tests/hotstone-load.js \
-          --env BASE_URL=${{ secrets.BASE_URL }} \
-          --env EMAIL=${{ secrets.EMAIL }} \
-          --env PASSWORD=${{ secrets.PASSWORD }} \
-          --env RESTAURANT_ID=${{ secrets.RESTAURANT_ID }} \
-          --out json=report.json
+export default function (data) {
+  // 1️⃣ Call admin offers API
+  const offersRes = http.get(`${BASE_URL}/special-offer`, {
+    headers: { Authorization: `Bearer ${data.token}` },
+  });
+  check(offersRes, { 'offers success': (r) => r.status === 200 });
 
-      - name: Install k6 HTML Reporter
-        run: npm install -g k6-reporter
+  // 2️⃣ Call customer offers API
+  const customerRes = http.get(`${BASE_URL}/special-offer/special-offer/customer`, {
+    headers: { 
+      Authorization: `Bearer ${data.token}`,
+      'x-restaurant-id': RESTAURANT_ID,
+    },
+  });
+  check(customerRes, { 'customer offers success': (r) => r.status === 200 });
 
-      - name: Generate HTML Report
-        run: k6-reporter report.json --output report.html
-
-      - name: Upload HTML Report
-        uses: actions/upload-artifact@v4
-        with:
-          name: k6-html-report
-          path: report.html
+  // Respect API rate limit (~25 requests per minute → 2.5–3s sleep per iteration)
+  sleep(3);
+}
