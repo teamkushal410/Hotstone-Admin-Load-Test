@@ -1,9 +1,9 @@
-name: K6 Load Test
+name: K6 Load Test + HTML Report
 
 on:
   push:
     branches: [ main ]
-  pull_request:
+  workflow_dispatch:
 
 jobs:
   load-test:
@@ -16,8 +16,23 @@ jobs:
       - name: Setup k6
         uses: grafana/setup-k6-action@v1
 
-      - name: Run k6 Test
-        uses: grafana/run-k6-action@v1
+      - name: Run k6 Test (Export JSON)
+        run: |
+          k6 run tests/hotstone-load.js \
+          --env BASE_URL=${{ secrets.BASE_URL }} \
+          --env EMAIL=${{ secrets.EMAIL }} \
+          --env PASSWORD=${{ secrets.PASSWORD }} \
+          --out json=report.json
+
+      - name: Install k6 HTML Reporter
+        run: npm install -g k6-reporter
+
+      - name: Generate HTML Report
+        run: |
+          k6-reporter report.json --output report.html
+
+      - name: Upload HTML Report Artifact
+        uses: actions/upload-artifact@v4
         with:
-          path: ./tests/hotstone-load.js
-          flags: --vus 50 --duration 1m
+          name: k6-html-report
+          path: report.html
