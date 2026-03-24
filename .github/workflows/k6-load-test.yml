@@ -9,7 +9,7 @@ jobs:
   load-test:
     runs-on: ubuntu-latest
     env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true  # Node.js 24 fix
 
     steps:
       - name: Checkout Code
@@ -21,14 +21,13 @@ jobs:
       - name: Run k6 Test (Export JSON)
         run: |
           k6 run tests/hotstone-load.js \
-            --env BASE_URL="${{ secrets.BASE_URL }}" \
-            --env EMAIL="${{ secrets.EMAIL }}" \
-            --env PASSWORD="${{ secrets.PASSWORD }}" \
-            --env RESTAURANT_ID="${{ secrets.RESTAURANT_ID }}" \
+            --env BASE_URL=${{ secrets.BASE_URL }} \
+            --env EMAIL=${{ secrets.EMAIL }} \
+            --env PASSWORD=${{ secrets.PASSWORD }} \
             --out json=report.json
 
       - name: Setup Node.js (for HTML Report)
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v3
         with:
           node-version: '24'
 
