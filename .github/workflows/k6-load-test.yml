@@ -1,4 +1,4 @@
-name: k6 Load Test
+name: Load Test Hotstone Admin
 
 on:
   workflow_dispatch:
@@ -7,26 +7,26 @@ jobs:
   load-test:
     runs-on: ubuntu-latest
 
+    env:
+      BASE_URL: ${{ secrets.BASE_URL }}
+      EMAIL: ${{ secrets.EMAIL }}
+      PASSWORD: ${{ secrets.PASSWORD }}
+      EMAIL1: ${{ secrets.EMAIL1 }}
+      PASSWORD1: ${{ secrets.PASSWORD1 }}
+      EMAIL2: ${{ secrets.EMAIL2 }}
+      PASSWORD2: ${{ secrets.PASSWORD2 }}
+
     steps:
-      - name: Checkout repository
+      - name: Checkout repo
         uses: actions/checkout@v4
 
       - name: Setup k6
         uses: grafana/setup-k6-action@v1
-        with:
-          version: '1.6.1'
 
-      - name: Run k6 load test
-        run: k6 run tests/hotstone-load.js --out json=report.json
-        env:
-          BASE_URL: ${{ secrets.BASE_URL }}
-          RESTAURANT_ID: ${{ secrets.RESTAURANT_ID }}
-          EMAIL: ${{ secrets.EMAIL }}
-          PASSWORD: ${{ secrets.PASSWORD }}
-          EMAIL1: ${{ secrets.EMAIL1 }}
-          PASSWORD1: ${{ secrets.PASSWORD1 }}
-          EMAIL2: ${{ secrets.EMAIL2 }}
-          PASSWORD2: ${{ secrets.PASSWORD2 }}
+      - name: Run k6 Load Test
+        run: |
+          mkdir -p results
+          k6 run tests/hotstone-load.js --out json=results/report.json
 
       - name: Install k6 HTML Reporter
         run: npm install -g k6-reporter
